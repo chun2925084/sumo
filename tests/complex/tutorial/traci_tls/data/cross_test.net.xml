@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 三 12/16 21:12:27 2020 by Eclipse SUMO netedit Version 1.8.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <output>
+        <output-file value="/Users/yingchun/2020-project/sumo/tests/complex/tutorial/traci_tls/data/cross_test.net.xml"/>
+    </output>
+
+    <processing>
+        <offset.disable-normalization value="true"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+    </junctions>
+
+    <report>
+        <aggregate-warnings value="5"/>
+    </report>
+
+</configuration>
+-->
+
+<net version="1.6" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <location netOffset="0.00,0.00" convBoundary="8.10,64.61,83.43,65.36" origBoundary="10000000000.00,10000000000.00,-10000000000.00,-10000000000.00" projParameter="!"/>
+
+    <edge id="gneE1" from="gneJ1" to="gneJ2" priority="-1" spreadType="center">
+        <lane id="gneE1_0" index="0" speed="100" length="100" shape="8.08,63.76 42.81,63.47"/>
+        <lane id="gneE1_1" index="1" speed="100" length="100" shape="8.11,66.96 42.84,66.67"/>
+    </edge>
+    <edge id="gneE2" from="gneJ3" to="gneJ2" priority="-1">
+        <lane id="gneE2_0" index="0" speed="13.89" length="37.61" shape="83.45,66.21 45.84,66.64"/>
+    </edge>
+
+    <junction id="gneJ1" type="dead_end" x="8.10" y="65.36" incLanes="" intLanes="" shape="8.12,68.56 8.07,62.16"/>
+    <junction id="gneJ2" type="dead_end" x="44.32" y="65.06" incLanes="gneE2_0 gneE1_0 gneE1_1" intLanes="" shape="45.86,68.24 45.82,65.04 42.80,61.87 42.85,68.27"/>
+    <junction id="gneJ3" type="dead_end" x="83.43" y="64.61" incLanes="" intLanes="" shape="83.43,64.61 83.47,67.81"/>
+
+</net>
