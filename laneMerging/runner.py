@@ -23,7 +23,7 @@ def generate_routefile():
     random.seed(42)  # make tests reproducible
     N = 3600  # number of time steps
     # demand per second from different directions
-    pA = 1. / 30 # a vehicle is generated every 30 seconds in average.
+    pA = 1. / 15 # a vehicle is generated every 30 seconds in average.
     pB = 1. / 30 # a vehicle is generated every 30 seconds in average.
     with open("laneMerging.rou.xml", "w") as routes:
         print("""<routes>
@@ -45,7 +45,7 @@ def generate_routefile():
         print("</routes>", file=routes)
 
 
-def compute_earliest_arrival(junction_x):
+def compute_earliest_arrival(junction_x, schedule_A, schedule_B):
     a = np.array([0])
     b = np.array([0])
     id_a = np.array([''])
@@ -56,8 +56,14 @@ def compute_earliest_arrival(junction_x):
     for vehID in traci.lanearea.getLastStepVehicleIDs("dA"):
         dist = junction_x - traci.vehicle.getPosition(vehID)[0]
         speed = traci.vehicle.getSpeed(vehID)
+        arrivalTime = 0
+        if speed == 0:
+            for i in schedule_A:
+                if i[0] == vehID:
+                    arrivalTime = i[1]
+        elif speed != 0:
+            arrivalTime = currentTime + (dist/speed)
         print(vehID, 'speed =', speed)
-        arrivalTime = currentTime + (dist/speed)
         a = np.append(a, arrivalTime)
         id_a = np.append(id_a, vehID)
 
@@ -65,8 +71,14 @@ def compute_earliest_arrival(junction_x):
     for vehID in traci.lanearea.getLastStepVehicleIDs("dB"):
         dist = junction_x - traci.vehicle.getPosition(vehID)[0]
         speed = traci.vehicle.getSpeed(vehID)
+        arrivalTime = 0
+        if speed == 0:
+            for i in schedule_B:
+                if i[0] == vehID:
+                    arrivalTime = i[1]
+        elif speed != 0:
+            arrivalTime = currentTime + (dist/speed)
         print(vehID, 'speed =', speed)
-        arrivalTime = currentTime + (dist/speed)
         b = np.append(b, arrivalTime)
         id_b = np.append(id_b, vehID)
 
@@ -101,22 +113,23 @@ def compute_entering_time(a, b):
             L[i][j][1] = min( max(b[j], L[i][j-1][0]+W_diff), max(b[j], L[i][j-1][1]+W_same) )
 
     # Choose optimal solution
-    order_stack = []
+    order_stack_A = []
+    order_stack_B = []
     i = alpha
     j = beta
     while i>0 or j>0:
         if L[i][j][1] < L[i][j][0]:
-            order_stack.append(('B', j, L[i][j][1]))
+            order_stack_B.append(('B', j, L[i][j][1]))
             j -= 1
         else:
-            order_stack.append(('A', i, L[i][j][0]))
+            order_stack_A.append(('A', i, L[i][j][0]))
             i -= 1
 
     # Output order
     # while len(order_stack) > 0:
     #     print(order_stack.pop())
 
-    return order_stack
+    return order_stack_A, order_stack_B
 
 
 def print_table(L):
@@ -129,6 +142,7 @@ def print_table(L):
 
 
 def run():
+    traci.vehicle.add("add1", "right", "typeA", departLane="1", departPos="250")
     step = 0
     period = 20
     junction_x = traci.junction.getPosition("gneJ1")[0]
@@ -169,41 +183,70 @@ def run():
         #         except traci.exceptions.TraCIException:
         #             pass
         #         del schedule_B[0]
+        # print(traci.vehicle.getSpeed(schedule_A[0][0]))
+        # break
+        if len(schedule_A) > 0 and schedule_A[0][2] == False:
+            d = schedule_A[0][1]-traci.simulation.getTime()
+            print('stop', schedule_A[0][0])
+            try:
+                traci.vehicle.setStop(schedule_A[0][0], "E1", pos=junction_x, laneIndex=1, duration=d)
+                schedule_A[0][2] = True
+            except traci.exceptions.TraCIException:
+                pass
+        if len(schedule_B) > 0 and schedule_B[0][2] == False:
+            d = schedule_B[0][1]-traci.simulation.getTime()
+            print('stop', schedule_B[0][0])
+            try:
+                traci.vehicle.setStop(schedule_B[0][0], "E1", pos=junction_x, laneIndex=0, duration=d)
+                schedule_B[0][2] = True
+            except traci.exceptions.TraCIException:
+                pass
+
+        # if len(schedule_A) > 0:
+        for i in schedule_A:
+            if i[1] < traci.simulation.getTime():
+                schedule_A.remove(i)
+        
+        # if len(schedule_B) > 0:
+        for i in schedule_B:
+            if i[1] < traci.simulation.getTime():
+                schedule_B.remove(i)
+
         if step == period:
             if traci.lanearea.getLastStepVehicleNumber("dA") > 0 and traci.lanearea.getLastStepVehicleNumber("dB") > 0:
-                a, b, id_a, id_b = compute_earliest_arrival(junction_x)
-                order_stack = compute_entering_time(a, b)
+                a, b, id_a, id_b = compute_earliest_arrival(junction_x, schedule_A, schedule_B)
+                order_stack_A, order_stack_B = compute_entering_time(a, b)
                 index_A = 1
                 index_B = 1
                 schedule_A = []
                 schedule_B = []
-                while len(order_stack) > 0:
-                    top = order_stack.pop()
-                    if top[0] == 'A':
-                        schedule_A.append((id_a[index_A], top[2]))
-                        print(id_a[index_A], 'enter =', top[2])
-                        if index_A == 1:
-                            d = top[2]-currentTime
-                            print('stop', id_a[index_A])
-                            try:
-                                traci.vehicle.setStop(id_a[1], "E1", pos=junction_x, laneIndex=1, duration=d)
-                            except traci.exceptions.TraCIException:
-                                pass
-                        index_A += 1
-                    else:
-                        schedule_B.append((id_b[index_B], top[2]))
-                        print(id_b[index_B], 'enter =', top[2])
-                        if index_B == 1:
-                            d = top[2]-currentTime
-                            print('stop', id_b[index_B])
-                            try:
-                                traci.vehicle.setStop(id_b[1], "E1", pos=junction_x, laneIndex=0, duration=d)
-                            except traci.exceptions.TraCIException:
-                                pass
-                        index_B += 1
+                while len(order_stack_A) > 0:
+                    top = order_stack_A.pop()
+                    schedule_A.append([id_a[index_A], top[2], False])
+                    print(id_a[index_A], 'enter =', top[2])
+                    # if index_A == 1:
+                    #     d = top[2]-currentTime
+                    #     print('stop', id_a[index_A])
+                    #     try:
+                    #         traci.vehicle.setStop(id_a[1], "E1", pos=junction_x, laneIndex=1, duration=d)
+                    #     except traci.exceptions.TraCIException:
+                    #         pass
+                    index_A += 1
+                while len(order_stack_B) > 0:
+                    top = order_stack_B.pop()
+                    schedule_B.append([id_b[index_B], top[2], False])
+                    print(id_b[index_B], 'enter =', top[2])
+                    # if index_B == 1:
+                    #     d = top[2]-currentTime
+                    #     print('stop', id_b[index_B])
+                    #     try:
+                    #         traci.vehicle.setStop(id_b[1], "E1", pos=junction_x, laneIndex=0, duration=d)
+                    #     except traci.exceptions.TraCIException:
+                    #         pass
+                    index_B += 1
 
             step = 0
-
+        print(traci.simulation.getTime())
     traci.close()
     sys.stdout.flush()
 
